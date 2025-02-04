@@ -1,0 +1,8 @@
+{
+	"@metadata": {
+		"authors": [
+			"tesinormed"
+		]
+	},
+	"orykratos-desc": "Adds support for Ory Kratos using PluggableAuth"
+}

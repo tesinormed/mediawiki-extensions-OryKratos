@@ -1,0 +1,46 @@
+[
+	{
+		"name": "ory_kratos",
+		"columns": [
+			{
+				"name": "kratos_user",
+				"comment": "MediaWiki user ID",
+				"type": "integer",
+				"options": {
+					"unsigned": true,
+					"notnull": true
+				}
+			},
+			{
+				"name": "kratos_id",
+				"comment": "Kratos identity ID",
+				"type": "binary",
+				"options": {
+					"length": 16,
+					"notnull": true
+				}
+			},
+			{
+				"name": "kratos_host",
+				"comment": "Kratos host",
+				"type": "blob",
+				"options": {
+					"notnull": true
+				}
+			}
+		],
+		"indexes": [
+			{
+				"name": "ory_kratos_id",
+				"columns": [
+					"kratos_id",
+					"kratos_host"
+				],
+				"unique": false
+			}
+		],
+		"pk": [
+			"kratos_user"
+		]
+	}
+]
