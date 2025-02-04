@@ -86,8 +86,8 @@ class OryKratos extends PluggableAuth {
 
 		$identityId = $session->getIdentity()->getId();
 		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
-		$username = $session->getIdentity()->getTraits()->username;
-		$email = $session->getIdentity()->getTraits()->email;
+		$username = $session->getIdentity()->getTraits()->username ?? $session->getIdentity()->getTraits()['username'];
+		$email = $session->getIdentity()->getTraits()->email ?? $session->getIdentity()->getTraits()['email'];
 
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
@@ -118,12 +118,13 @@ class OryKratos extends PluggableAuth {
 		$request = $this->authManager->getRequest();
 
 		try {
-			$location = $this->kratosFrontendApi->createBrowserLogoutFlow(
+			$token = $this->kratosFrontendApi->createBrowserLogoutFlow(
+				cookie: $request->getHeader( 'Cookie' )
+			)->getLogoutToken();
+			$this->kratosFrontendApi->updateLogoutFlow(
 				cookie: $request->getHeader( 'Cookie' ),
-				returnTo: Title::newMainPage()->getFullURL()
-			)->getLogoutUrl();
-			$request->response()->header( "Location: $location" );
-			exit;
+				token: $token
+			);
 		} catch ( ApiException $exception ) {
 			// silently fail
 			wfWarn( $exception->getMessage() );
