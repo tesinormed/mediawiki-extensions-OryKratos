@@ -17,8 +17,7 @@ use Ory\Kratos\Client\Configuration;
 use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
-class OryKratos extends PluggableAuth
-{
+class OryKratos extends PluggableAuth {
 	private const IDENTITY_ID_SESSION_KEY = 'OryKratosIdentityId';
 
 	private Config $config;
@@ -29,50 +28,47 @@ class OryKratos extends PluggableAuth
 	private FrontendApi $kratosFrontendApi;
 
 	public function __construct(
-		ConfigFactory       $configFactory,
-		AuthManager         $authManager,
+		ConfigFactory $configFactory,
+		AuthManager $authManager,
 		IConnectionProvider $dbProvider,
-	)
-	{
-		$this->config = $configFactory->makeConfig('orykratos');
+	) {
+		$this->config = $configFactory->makeConfig( 'orykratos' );
 		$this->authManager = $authManager;
 		$this->dbProvider = $dbProvider;
 
 		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
-			->setHost($this->config->get('OryKratosHost'));
-		$this->kratosFrontendApi = new FrontendApi(new Client(), $this->kratosClientConfiguration);
+			->setHost( $this->config->get( 'OryKratosHost' ) );
+		$this->kratosFrontendApi = new FrontendApi( new Client(), $this->kratosClientConfiguration );
 	}
 
 	/**
 	 * @see https://www.mediawiki.org/wiki/Manual:Extension.json/Schema#callback
 	 */
-	public static function onRegistration(array $extensionInfo, SettingsBuilder $settings): void
-	{
-		if ($settings->getConfig()->get('OryKratosHost') === null) {
-			throw new RuntimeException('$wgOryKratosHost must be set to the Ory Kratos host URL');
+	public static function onRegistration( array $extensionInfo, SettingsBuilder $settings ): void {
+		if ( $settings->getConfig()->get( 'OryKratosHost' ) === null ) {
+			throw new RuntimeException( '$wgOryKratosHost must be set to the Ory Kratos host URL' );
 		}
 	}
 
 	/** @inheritDoc */
 	public function authenticate(
-		?int    &$id,
+		?int &$id,
 		?string &$username,
 		?string &$realname,
 		?string &$email,
 		?string &$errorMessage
-	): bool
-	{
+	): bool {
 		$request = $this->authManager->getRequest();
 		try {
-			$session = $this->kratosFrontendApi->toSession(cookie: $request->getHeader('Cookie'));
-			if (!$session->getActive()) {
-				throw new ApiException(code: 401);
+			$session = $this->kratosFrontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
+			if ( !$session->getActive() ) {
+				throw new ApiException( code: 401 );
 			}
-		} catch (ApiException $exception) {
-			if ($exception->getCode() == 401 || $exception->getCode() == 403) {
+		} catch ( ApiException $exception ) {
+			if ( $exception->getCode() == 401 || $exception->getCode() == 403 ) {
 				$location = $this->kratosClientConfiguration->getHost()
 					. '/self-service/login/browser?return_to='
-					. urlencode($request->getSessionData(PluggableAuthLogin::RETURNTOURL_SESSION_KEY));
+					. urlencode( $request->getSessionData( PluggableAuthLogin::RETURNTOURL_SESSION_KEY ) );
 				$request->response()->header(
 					"Location: $location",
 					http_response_code: 303
@@ -85,24 +81,24 @@ class OryKratos extends PluggableAuth
 		}
 
 		$identityId = $session->getIdentity()->getId();
-		$this->authManager->setAuthenticationSessionData(self::IDENTITY_ID_SESSION_KEY, $identityId);
+		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
 		$username = $session->getIdentity()->getTraits()->username;
 		$email = $session->getIdentity()->getTraits()->email;
 
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
-			->select(['user_id'])
-			->from('user')
+			->select( [ 'user_id' ] )
+			->from( 'user' )
 			->join(
 				'ory_kratos',
 				conds: 'user_id=kratos_user'
 			)
-			->where([
-				'kratos_id' => self::uuidToHex($identityId),
+			->where( [
+				'kratos_id' => self::uuidToHex( $identityId ),
 				'kratos_host' => $this->kratosClientConfiguration->getHost()
-			])
-			->caller(__METHOD__)->fetchField();
-		if ($field !== false) {
+			] )
+			->caller( __METHOD__ )->fetchField();
+		if ( $field !== false ) {
 			$id = $field;
 		} else {
 			$id = null;
@@ -111,13 +107,12 @@ class OryKratos extends PluggableAuth
 	}
 
 	/** @inheritDoc */
-	public function deauthenticate(UserIdentity &$user): void
-	{
+	public function deauthenticate( UserIdentity &$user ): void {
 		$request = $this->authManager->getRequest();
 
 		try {
 			$location = $this->kratosFrontendApi->createBrowserLogoutFlow(
-				cookie: $request->getHeader('Cookie'),
+				cookie: $request->getHeader( 'Cookie' ),
 				returnTo: Title::newMainPage()->getFullURL()
 			)->getLogoutUrl();
 			$request->response()->header(
@@ -125,29 +120,27 @@ class OryKratos extends PluggableAuth
 				http_response_code: 303
 			);
 			exit;
-		} catch (ApiException $exception) {
+		} catch ( ApiException $exception ) {
 			// silently fail
-			wfWarn($exception->getMessage());
+			wfWarn( $exception->getMessage() );
 		}
 	}
 
 	/** @inheritDoc */
-	public function saveExtraAttributes(int $id): void
-	{
-		$kratosId = $this->authManager->getAuthenticationSessionData(self::IDENTITY_ID_SESSION_KEY);
+	public function saveExtraAttributes( int $id ): void {
+		$kratosId = $this->authManager->getAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY );
 		$dbw = $this->dbProvider->getPrimaryDatabase();
 		$dbw->newInsertQueryBuilder()
-			->insertInto('ory_kratos')
-			->row([
+			->insertInto( 'ory_kratos' )
+			->row( [
 				'kratos_user' => $id,
-				'kratos_id' => self::uuidToHex($kratosId),
+				'kratos_id' => self::uuidToHex( $kratosId ),
 				'kratos_host' => $this->kratosClientConfiguration->getHost()
-			])
-			->caller(__METHOD__)->execute();
+			] )
+			->caller( __METHOD__ )->execute();
 	}
 
-	private static function uuidToHex(string $uuid): string
-	{
-		return hex2bin(str_replace('-', '', $uuid));
+	private static function uuidToHex( string $uuid ): string {
+		return hex2bin( str_replace( '-', '', $uuid ) );
 	}
 }
