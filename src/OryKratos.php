@@ -11,6 +11,7 @@ use MediaWiki\Extension\PluggableAuth\PluggableAuthLogin;
 use MediaWiki\Settings\SettingsBuilder;
 use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
+use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
@@ -23,6 +24,7 @@ class OryKratos extends PluggableAuth {
 	private Config $config;
 	private AuthManager $authManager;
 	private IConnectionProvider $dbProvider;
+	private UserIdentityLookup $userIdentityLookup;
 
 	private Configuration $kratosClientConfiguration;
 	private FrontendApi $kratosFrontendApi;
@@ -31,10 +33,12 @@ class OryKratos extends PluggableAuth {
 		ConfigFactory $configFactory,
 		AuthManager $authManager,
 		IConnectionProvider $dbProvider,
+		UserIdentityLookup $userIdentityLookup,
 	) {
 		$this->config = $configFactory->makeConfig( 'orykratos' );
 		$this->authManager = $authManager;
 		$this->dbProvider = $dbProvider;
+		$this->userIdentityLookup = $userIdentityLookup;
 
 		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
 			->setHost( $this->config->get( 'OryKratosHost' ) );
@@ -101,7 +105,10 @@ class OryKratos extends PluggableAuth {
 		if ( $field !== false ) {
 			$id = $field;
 		} else {
-			$id = null;
+			$id = $this->userIdentityLookup->getUserIdentityByName( $username )?->getId();
+			if ( $id !== null ) {
+				$this->saveExtraAttributes( $id );
+			}
 		}
 		return true;
 	}
@@ -115,10 +122,7 @@ class OryKratos extends PluggableAuth {
 				cookie: $request->getHeader( 'Cookie' ),
 				returnTo: Title::newMainPage()->getFullURL()
 			)->getLogoutUrl();
-			$request->response()->header(
-				"Location: $location",
-				http_response_code: 303
-			);
+			$request->response()->header( "Location: $location" );
 			exit;
 		} catch ( ApiException $exception ) {
 			// silently fail
