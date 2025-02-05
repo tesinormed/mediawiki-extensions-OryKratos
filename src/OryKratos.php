@@ -5,12 +5,13 @@ namespace MediaWiki\Extension\OryKratos;
 use GuzzleHttp\Client;
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Extension\PluggableAuth\PluggableAuth;
-use MediaWiki\Extension\PluggableAuth\PluggableAuthLogin;
+use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
+use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratos extends PluggableAuth {
@@ -37,6 +38,10 @@ class OryKratos extends PluggableAuth {
 	public function init( string $configId, array $config ): void {
 		parent::init( $configId, $config );
 
+		if ( !$this->getData()->has( 'host' ) ) {
+			throw new RuntimeException( '"host" required in "data" block' );
+		}
+
 		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
 			->setHost( $this->getData()->get( 'host' ) );
 		$this->kratosFrontendApi = new FrontendApi( new Client(), $this->kratosClientConfiguration );
@@ -60,11 +65,8 @@ class OryKratos extends PluggableAuth {
 			if ( $exception->getCode() == 401 || $exception->getCode() == 403 ) {
 				$location = $this->kratosClientConfiguration->getHost()
 					. '/self-service/login/browser?return_to='
-					. urlencode( $request->getSessionData( PluggableAuthLogin::RETURNTOURL_SESSION_KEY ) );
-				$request->response()->header(
-					"Location: $location",
-					http_response_code: 303
-				);
+					. urlencode( SpecialPage::getTitleFor( 'PluggableAuthLogin' )->getFullURL() );
+				$request->response()->header( "Location: $location" );
 				exit;
 			} else {
 				$errorMessage = $exception->getMessage();
@@ -89,13 +91,17 @@ class OryKratos extends PluggableAuth {
 				'kratos_id' => self::uuidToHex( $identityId ),
 				'kratos_host' => $this->kratosClientConfiguration->getHost()
 			] )
+			->useIndex( 'ory_kratos_id' )
 			->caller( __METHOD__ )->fetchField();
 		if ( $field !== false ) {
 			$id = $field;
 		} else {
-			$id = $this->userIdentityLookup->getUserIdentityByName( $username )?->getId();
-			if ( $id !== null ) {
+			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $username );
+			if ( $userIdentity !== null && $userIdentity->isRegistered() ) {
+				$id = $userIdentity->getId();
 				$this->saveExtraAttributes( $id );
+			} else {
+				$id = null;
 			}
 		}
 		return true;
