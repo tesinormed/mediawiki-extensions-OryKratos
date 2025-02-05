@@ -4,24 +4,18 @@ namespace MediaWiki\Extension\OryKratos;
 
 use GuzzleHttp\Client;
 use MediaWiki\Auth\AuthManager;
-use MediaWiki\Config\Config;
-use MediaWiki\Config\ConfigFactory;
 use MediaWiki\Extension\PluggableAuth\PluggableAuth;
 use MediaWiki\Extension\PluggableAuth\PluggableAuthLogin;
-use MediaWiki\Settings\SettingsBuilder;
-use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
-use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratos extends PluggableAuth {
 	private const IDENTITY_ID_SESSION_KEY = 'OryKratosIdentityId';
 
-	private Config $config;
 	private AuthManager $authManager;
 	private IConnectionProvider $dbProvider;
 	private UserIdentityLookup $userIdentityLookup;
@@ -30,28 +24,22 @@ class OryKratos extends PluggableAuth {
 	private FrontendApi $kratosFrontendApi;
 
 	public function __construct(
-		ConfigFactory $configFactory,
 		AuthManager $authManager,
 		IConnectionProvider $dbProvider,
 		UserIdentityLookup $userIdentityLookup,
 	) {
-		$this->config = $configFactory->makeConfig( 'orykratos' );
 		$this->authManager = $authManager;
 		$this->dbProvider = $dbProvider;
 		$this->userIdentityLookup = $userIdentityLookup;
-
-		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
-			->setHost( $this->config->get( 'OryKratosHost' ) );
-		$this->kratosFrontendApi = new FrontendApi( new Client(), $this->kratosClientConfiguration );
 	}
 
-	/**
-	 * @see https://www.mediawiki.org/wiki/Manual:Extension.json/Schema#callback
-	 */
-	public static function onRegistration( array $extensionInfo, SettingsBuilder $settings ): void {
-		if ( $settings->getConfig()->get( 'OryKratosHost' ) === null ) {
-			throw new RuntimeException( '$wgOryKratosHost must be set to the Ory Kratos host URL' );
-		}
+	/** @inheritDoc */
+	public function init( string $configId, array $config ): void {
+		parent::init( $configId, $config );
+
+		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
+			->setHost( $this->getData()->get( 'host' ) );
+		$this->kratosFrontendApi = new FrontendApi( new Client(), $this->kratosClientConfiguration );
 	}
 
 	/** @inheritDoc */
@@ -86,8 +74,8 @@ class OryKratos extends PluggableAuth {
 
 		$identityId = $session->getIdentity()->getId();
 		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
-		$username = $session->getIdentity()->getTraits()->username ?? $session->getIdentity()->getTraits()['username'];
-		$email = $session->getIdentity()->getTraits()->email ?? $session->getIdentity()->getTraits()['email'];
+		$username = $session->getIdentity()->getTraits()->username;
+		$email = $session->getIdentity()->getTraits()->email;
 
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
@@ -118,17 +106,19 @@ class OryKratos extends PluggableAuth {
 		$request = $this->authManager->getRequest();
 
 		try {
-			$token = $this->kratosFrontendApi->createBrowserLogoutFlow(
-				cookie: $request->getHeader( 'Cookie' )
-			)->getLogoutToken();
-			$this->kratosFrontendApi->updateLogoutFlow(
-				cookie: $request->getHeader( 'Cookie' ),
-				token: $token
-			);
+			$token = $this->kratosFrontendApi
+				->createBrowserLogoutFlow( cookie: $request->getHeader( 'Cookie' ) )
+				->getLogoutToken();
+			$this->kratosFrontendApi->updateLogoutFlow( token: $token, cookie: $request->getHeader( 'Cookie' ) );
 		} catch ( ApiException $exception ) {
 			// silently fail
-			wfWarn( $exception->getMessage() );
+			wfLogWarning( $exception->getMessage() );
 		}
+	}
+
+	/** @inheritDoc */
+	public function shouldOverrideDefaultLogout(): bool {
+		return true;
 	}
 
 	/** @inheritDoc */

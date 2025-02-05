@@ -1,6 +1,6 @@
 {
 	"name": "OryKratos",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"author": [
 		"tesinormed"
 	],
@@ -20,15 +20,6 @@
 	"AutoloadNamespaces": {
 		"MediaWiki\\Extension\\OryKratos\\": "src/"
 	},
-	"callback": "MediaWiki\\Extension\\OryKratos\\OryKratos::onRegistration",
-	"config": {
-		"OryKratosHost": {
-			"value": null
-		}
-	},
-	"ConfigRegistry": {
-		"orykratos": "GlobalVarConfig::newInstance"
-	},
 	"HookHandlers": {
 		"schema": {
 			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks"
@@ -42,7 +33,6 @@
 			"OryKratos": {
 				"class": "MediaWiki\\Extension\\OryKratos\\OryKratos",
 				"services": [
-					"ConfigFactory",
 					"AuthManager",
 					"ConnectionProvider",
 					"UserIdentityLookup"
@@ -55,5 +45,6 @@
 			"i18n"
 		]
 	},
+	"load_composer_autoloader": true,
 	"manifest_version": 2
 }

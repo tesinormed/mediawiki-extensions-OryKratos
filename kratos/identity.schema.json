@@ -25,6 +25,7 @@
 				}
 			},
 			"required": [
+				"username",
 				"email"
 			],
 			"additionalProperties": false
