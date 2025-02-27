@@ -14,9 +14,8 @@
 			{
 				"name": "kratos_id",
 				"comment": "Kratos identity ID",
-				"type": "binary",
+				"type": "blob",
 				"options": {
-					"length": 16,
 					"notnull": true
 				}
 			},

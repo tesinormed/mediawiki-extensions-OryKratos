@@ -56,6 +56,7 @@ class OryKratos extends PluggableAuth {
 		?string &$errorMessage
 	): bool {
 		$request = $this->authManager->getRequest();
+
 		try {
 			$session = $this->kratosFrontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
 			if ( !$session->getActive() ) {
@@ -88,7 +89,7 @@ class OryKratos extends PluggableAuth {
 				conds: 'user_id=kratos_user'
 			)
 			->where( [
-				'kratos_id' => self::uuidToHex( $identityId ),
+				'kratos_id' => $identityId,
 				'kratos_host' => $this->kratosClientConfiguration->getHost()
 			] )
 			->useIndex( 'ory_kratos_id' )
@@ -109,13 +110,13 @@ class OryKratos extends PluggableAuth {
 
 	/** @inheritDoc */
 	public function deauthenticate( UserIdentity &$user ): void {
-		$request = $this->authManager->getRequest();
+		$cookieHeader = $this->authManager->getRequest()->getHeader( 'Cookie' );
 
 		try {
 			$token = $this->kratosFrontendApi
-				->createBrowserLogoutFlow( cookie: $request->getHeader( 'Cookie' ) )
+				->createBrowserLogoutFlow( cookie: $cookieHeader )
 				->getLogoutToken();
-			$this->kratosFrontendApi->updateLogoutFlow( token: $token, cookie: $request->getHeader( 'Cookie' ) );
+			$this->kratosFrontendApi->updateLogoutFlow( token: $token, cookie: $cookieHeader );
 		} catch ( ApiException $exception ) {
 			// silently fail
 			wfLogWarning( $exception->getMessage() );
@@ -135,13 +136,9 @@ class OryKratos extends PluggableAuth {
 			->insertInto( 'ory_kratos' )
 			->row( [
 				'kratos_user' => $id,
-				'kratos_id' => self::uuidToHex( $kratosId ),
+				'kratos_id' => $kratosId,
 				'kratos_host' => $this->kratosClientConfiguration->getHost()
 			] )
 			->caller( __METHOD__ )->execute();
-	}
-
-	private static function uuidToHex( string $uuid ): string {
-		return hex2bin( str_replace( '-', '', $uuid ) );
 	}
 }

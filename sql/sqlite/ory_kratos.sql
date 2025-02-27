@@ -2,12 +2,11 @@
 -- Source: extensions/OryKratos/sql/ory_kratos.json
 -- Do not modify this file directly.
 -- See https://www.mediawiki.org/wiki/Manual:Schema_changes
-CREATE TABLE /*_*/ory_kratos
-(
-	kratos_user INTEGER UNSIGNED NOT NULL,
-	kratos_id   BLOB NOT NULL,
-	kratos_host BLOB NOT NULL,
-	PRIMARY KEY (kratos_user)
+CREATE TABLE /*_*/ory_kratos (
+  kratos_user INTEGER UNSIGNED NOT NULL,
+  kratos_id BLOB NOT NULL,
+  kratos_host BLOB NOT NULL,
+  PRIMARY KEY(kratos_user)
 );
 
 CREATE INDEX ory_kratos_id ON /*_*/ory_kratos (kratos_id, kratos_host);
