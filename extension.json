@@ -1,6 +1,6 @@
 {
 	"name": "OryKratos",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"author": [
 		"tesinormed"
 	],
@@ -21,11 +21,19 @@
 		"MediaWiki\\Extension\\OryKratos\\": "src/"
 	},
 	"HookHandlers": {
+		"skin": {
+			"class": "MediaWiki\\Extension\\OryKratos\\SkinHooks",
+			"services": [
+			]
+		},
 		"schema": {
-			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks"
+			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks",
+			"services": [
+			]
 		}
 	},
 	"Hooks": {
+		"SkinTemplateNavigation::Universal": "skin",
 		"LoadExtensionSchemaUpdates": "schema"
 	},
 	"attributes": {

@@ -4,5 +4,6 @@
 			"tesinormed"
 		]
 	},
-	"orykratos-desc": "Adds support for Ory Kratos using PluggableAuth"
+	"orykratos-desc": "Adds support for Ory Kratos using PluggableAuth",
+	"orykratos-usermenu-text": "Login dashboard"
 }

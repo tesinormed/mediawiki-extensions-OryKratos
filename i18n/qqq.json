@@ -4,5 +4,6 @@
 			"tesinormed"
 		]
 	},
-	"orykratos-desc": "{{desc|name=OryKratos|url=https://www.mediawiki.org/wiki/Extension:OryKratos}}"
+	"orykratos-desc": "{{desc|name=OryKratos|url=https://www.mediawiki.org/wiki/Extension:OryKratos}}",
+	"orykratos-usermenu-text": "Text shown for the user menu link to the login dashboard"
 }
