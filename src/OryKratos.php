@@ -6,6 +6,7 @@ use GuzzleHttp\Client;
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Extension\PluggableAuth\PluggableAuth;
 use MediaWiki\SpecialPage\SpecialPage;
+use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
@@ -110,13 +111,24 @@ class OryKratos extends PluggableAuth {
 
 	/** @inheritDoc */
 	public function deauthenticate( UserIdentity &$user ): void {
-		$cookieHeader = $this->authManager->getRequest()->getHeader( 'Cookie' );
+		$request = $this->authManager->getRequest();
+		$cookieHeader = $request->getHeader( 'Cookie' );
+		$returnTo = $request->getVal( 'returnto' );
+
+		$title = null;
+		if ( $returnTo !== null ) {
+			$title = Title::newFromText( $returnTo );
+		}
+		if ( $title === null ) {
+			$title = Title::newMainPage();
+		}
 
 		try {
-			$token = $this->kratosFrontendApi
-				->createBrowserLogoutFlow( cookie: $cookieHeader )
-				->getLogoutToken();
-			$this->kratosFrontendApi->updateLogoutFlow( token: $token, cookie: $cookieHeader );
+			$location = $this->kratosFrontendApi
+				->createBrowserLogoutFlow( cookie: $cookieHeader, returnTo: $title->getFullURL() )
+				->getLogoutUrl();
+			$request->response()->header( "Location: $location" );
+			exit;
 		} catch ( ApiException $exception ) {
 			// silently fail
 			wfLogWarning( $exception->getMessage() );
