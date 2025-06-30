@@ -127,7 +127,7 @@ class OryKratos extends PluggableAuth {
 			$location = $this->kratosFrontendApi
 				->createBrowserLogoutFlow( cookie: $cookieHeader, returnTo: $title->getFullURL() )
 				->getLogoutUrl();
-			$request->response()->header( "Location: $location" );
+			header( "Location: $location" );
 			exit;
 		} catch ( ApiException $exception ) {
 			// silently fail

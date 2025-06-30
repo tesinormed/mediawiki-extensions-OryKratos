@@ -1,6 +1,6 @@
 {
 	"name": "OryKratos",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"author": [
 		"tesinormed"
 	],
@@ -22,14 +22,10 @@
 	},
 	"HookHandlers": {
 		"skin": {
-			"class": "MediaWiki\\Extension\\OryKratos\\SkinHooks",
-			"services": [
-			]
+			"class": "MediaWiki\\Extension\\OryKratos\\SkinHooks"
 		},
 		"schema": {
-			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks",
-			"services": [
-			]
+			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks"
 		}
 	},
 	"Hooks": {
