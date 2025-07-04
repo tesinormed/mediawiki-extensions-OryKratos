@@ -17,13 +17,11 @@ use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratos extends PluggableAuth {
 	private const IDENTITY_ID_SESSION_KEY = 'OryKratosIdentityId';
-	private const SESSION_ID_SESSION_KEY = 'OryKratosSessionId';
 
 	private AuthManager $authManager;
 	private IConnectionProvider $dbProvider;
 	private UserIdentityLookup $userIdentityLookup;
 
-	private string $publicHost;
 	private FrontendApi $frontendApi;
 	private IdentityApi $identityApi;
 
@@ -45,20 +43,18 @@ class OryKratos extends PluggableAuth {
 			throw new RuntimeException( '"publicHost" required in "data" block' );
 		}
 
+		$this->frontendApi = new FrontendApi(
+			new Client(),
+			( new Configuration() )->setHost( $this->getData()->get( 'publicHost' ) )
+		);
+
 		if ( !$this->getData()->has( 'adminHost' ) ) {
 			throw new RuntimeException( '"adminHost" required in "data" block' );
 		}
 
-		$this->publicHost = $this->getData()->get( 'publicHost' );
-		$this->frontendApi = new FrontendApi(
-			new Client(),
-			Configuration::getDefaultConfiguration()
-				->setHost( $this->getData()->get( 'publicHost' ) )
-		);
 		$this->identityApi = new IdentityApi(
 			new Client(),
-			Configuration::getDefaultConfiguration()
-				->setHost( $this->getData()->get( 'adminHost' ) )
+			( new Configuration() )->setHost( $this->getData()->get( 'adminHost' ) )
 		);
 	}
 
@@ -71,6 +67,7 @@ class OryKratos extends PluggableAuth {
 		?string &$errorMessage
 	): bool {
 		$request = $this->authManager->getRequest();
+		$publicHost = $this->frontendApi->getConfig()->getHost();
 
 		try {
 			$session = $this->frontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
@@ -79,8 +76,7 @@ class OryKratos extends PluggableAuth {
 			}
 		} catch ( ApiException $exception ) {
 			if ( $exception->getCode() == 401 || $exception->getCode() == 403 ) {
-				$location = $this->publicHost
-					. '/self-service/login/browser?return_to='
+				$location = $publicHost . '/self-service/login/browser?return_to='
 					. urlencode( SpecialPage::getTitleFor( 'PluggableAuthLogin' )->getFullURL() );
 				$request->response()->header( "Location: $location" );
 				exit;
@@ -90,14 +86,14 @@ class OryKratos extends PluggableAuth {
 			}
 		}
 
-		$this->authManager->setAuthenticationSessionData( self::SESSION_ID_SESSION_KEY, $session->getId() );
-
 		$identityId = $session->getIdentity()->getId();
 		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
 
 		$username = $session->getIdentity()->getTraits()->username;
 		$email = $session->getIdentity()->getTraits()->email;
-		$realname = $session->getIdentity()->getTraits()->name ?? null;
+		if ( isset( $session->getIdentity()->getTraits()->name ) ) {
+			$realname = $session->getIdentity()->getTraits()->name;
+		}
 
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
@@ -109,7 +105,7 @@ class OryKratos extends PluggableAuth {
 			)
 			->where( [
 				'kratos_id' => $identityId,
-				'kratos_host' => $this->publicHost
+				'kratos_host' => $publicHost
 			] )
 			->useIndex( 'ory_kratos_id' )
 			->caller( __METHOD__ )->fetchField();
@@ -137,15 +133,23 @@ class OryKratos extends PluggableAuth {
 
 	/** @inheritDoc */
 	public function deauthenticate( UserIdentity &$user ): void {
-		$sessionId = $this->authManager->getAuthenticationSessionData( self::SESSION_ID_SESSION_KEY );
+		$dbr = $this->dbProvider->getReplicaDatabase();
+		$identityId = $dbr->newSelectQueryBuilder()
+			->select( 'kratos_id' )
+			->from( 'ory_kratos' )
+			->where( [
+				'kratos_user' => $user->getId(),
+				'kratos_host' => $this->frontendApi->getConfig()->getHost()
+			] )
+			->useIndex( 'ory_kratos_id' )
+			->caller( __METHOD__ )->fetchField();
 
-		if ( $sessionId === null ) {
-			// backwards compatibility, silently fail
+		if ( $identityId === false ) {
 			return;
 		}
 
 		try {
-			$this->identityApi->disableSession( $sessionId );
+			$this->identityApi->deleteIdentitySessions( $identityId );
 		} catch ( ApiException $exception ) {
 			wfLogWarning( $exception->getMessage() );
 		}
@@ -161,7 +165,7 @@ class OryKratos extends PluggableAuth {
 			->row( [
 				'kratos_user' => $id,
 				'kratos_id' => $identityId,
-				'kratos_host' => $this->publicHost
+				'kratos_host' => $this->frontendApi->getConfig()->getHost()
 			] )
 			->caller( __METHOD__ )->execute();
 	}
