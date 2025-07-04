@@ -6,10 +6,10 @@ use GuzzleHttp\Client;
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Extension\PluggableAuth\PluggableAuth;
 use MediaWiki\SpecialPage\SpecialPage;
-use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
+use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
 use RuntimeException;
@@ -17,13 +17,15 @@ use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratos extends PluggableAuth {
 	private const IDENTITY_ID_SESSION_KEY = 'OryKratosIdentityId';
+	private const SESSION_ID_SESSION_KEY = 'OryKratosSessionId';
 
 	private AuthManager $authManager;
 	private IConnectionProvider $dbProvider;
 	private UserIdentityLookup $userIdentityLookup;
 
-	private Configuration $kratosClientConfiguration;
-	private FrontendApi $kratosFrontendApi;
+	private string $publicHost;
+	private FrontendApi $frontendApi;
+	private IdentityApi $identityApi;
 
 	public function __construct(
 		AuthManager $authManager,
@@ -39,13 +41,25 @@ class OryKratos extends PluggableAuth {
 	public function init( string $configId, array $config ): void {
 		parent::init( $configId, $config );
 
-		if ( !$this->getData()->has( 'host' ) ) {
-			throw new RuntimeException( '"host" required in "data" block' );
+		if ( !$this->getData()->has( 'publicHost' ) ) {
+			throw new RuntimeException( '"publicHost" required in "data" block' );
 		}
 
-		$this->kratosClientConfiguration = Configuration::getDefaultConfiguration()
-			->setHost( $this->getData()->get( 'host' ) );
-		$this->kratosFrontendApi = new FrontendApi( new Client(), $this->kratosClientConfiguration );
+		if ( !$this->getData()->has( 'adminHost' ) ) {
+			throw new RuntimeException( '"adminHost" required in "data" block' );
+		}
+
+		$this->publicHost = $this->getData()->get( 'publicHost' );
+		$this->frontendApi = new FrontendApi(
+			new Client(),
+			Configuration::getDefaultConfiguration()
+				->setHost( $this->getData()->get( 'publicHost' ) )
+		);
+		$this->identityApi = new IdentityApi(
+			new Client(),
+			Configuration::getDefaultConfiguration()
+				->setHost( $this->getData()->get( 'adminHost' ) )
+		);
 	}
 
 	/** @inheritDoc */
@@ -59,13 +73,13 @@ class OryKratos extends PluggableAuth {
 		$request = $this->authManager->getRequest();
 
 		try {
-			$session = $this->kratosFrontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
+			$session = $this->frontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
 			if ( !$session->getActive() ) {
 				throw new ApiException( code: 401 );
 			}
 		} catch ( ApiException $exception ) {
 			if ( $exception->getCode() == 401 || $exception->getCode() == 403 ) {
-				$location = $this->kratosClientConfiguration->getHost()
+				$location = $this->publicHost
 					. '/self-service/login/browser?return_to='
 					. urlencode( SpecialPage::getTitleFor( 'PluggableAuthLogin' )->getFullURL() );
 				$request->response()->header( "Location: $location" );
@@ -76,10 +90,14 @@ class OryKratos extends PluggableAuth {
 			}
 		}
 
+		$this->authManager->setAuthenticationSessionData( self::SESSION_ID_SESSION_KEY, $session->getId() );
+
 		$identityId = $session->getIdentity()->getId();
 		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
+
 		$username = $session->getIdentity()->getTraits()->username;
 		$email = $session->getIdentity()->getTraits()->email;
+		$realname = $session->getIdentity()->getTraits()->name ?? null;
 
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
@@ -91,14 +109,16 @@ class OryKratos extends PluggableAuth {
 			)
 			->where( [
 				'kratos_id' => $identityId,
-				'kratos_host' => $this->kratosClientConfiguration->getHost()
+				'kratos_host' => $this->publicHost
 			] )
 			->useIndex( 'ory_kratos_id' )
 			->caller( __METHOD__ )->fetchField();
+
 		if ( $field !== false ) {
 			$id = $field;
 		} else {
 			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $username );
+
 			if ( $userIdentity !== null && $userIdentity->isRegistered() ) {
 				$id = $userIdentity->getId();
 				$this->saveExtraAttributes( $id );
@@ -106,33 +126,8 @@ class OryKratos extends PluggableAuth {
 				$id = null;
 			}
 		}
+
 		return true;
-	}
-
-	/** @inheritDoc */
-	public function deauthenticate( UserIdentity &$user ): void {
-		$request = $this->authManager->getRequest();
-		$cookieHeader = $request->getHeader( 'Cookie' );
-		$returnTo = $request->getVal( 'returnto' );
-
-		$title = null;
-		if ( $returnTo !== null ) {
-			$title = Title::newFromText( $returnTo );
-		}
-		if ( $title === null ) {
-			$title = Title::newMainPage();
-		}
-
-		try {
-			$location = $this->kratosFrontendApi
-				->createBrowserLogoutFlow( cookie: $cookieHeader, returnTo: $title->getFullURL() )
-				->getLogoutUrl();
-			header( "Location: $location" );
-			exit;
-		} catch ( ApiException $exception ) {
-			// silently fail
-			wfLogWarning( $exception->getMessage() );
-		}
 	}
 
 	/** @inheritDoc */
@@ -141,15 +136,32 @@ class OryKratos extends PluggableAuth {
 	}
 
 	/** @inheritDoc */
+	public function deauthenticate( UserIdentity &$user ): void {
+		$sessionId = $this->authManager->getAuthenticationSessionData( self::SESSION_ID_SESSION_KEY );
+
+		if ( $sessionId === null ) {
+			// backwards compatibility, silently fail
+			return;
+		}
+
+		try {
+			$this->identityApi->disableSession( $sessionId );
+		} catch ( ApiException $exception ) {
+			wfLogWarning( $exception->getMessage() );
+		}
+	}
+
+	/** @inheritDoc */
 	public function saveExtraAttributes( int $id ): void {
-		$kratosId = $this->authManager->getAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY );
+		$identityId = $this->authManager->getAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY );
+
 		$dbw = $this->dbProvider->getPrimaryDatabase();
 		$dbw->newInsertQueryBuilder()
 			->insertInto( 'ory_kratos' )
 			->row( [
 				'kratos_user' => $id,
-				'kratos_id' => $kratosId,
-				'kratos_host' => $this->kratosClientConfiguration->getHost()
+				'kratos_id' => $identityId,
+				'kratos_host' => $this->publicHost
 			] )
 			->caller( __METHOD__ )->execute();
 	}
