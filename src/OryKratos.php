@@ -21,7 +21,6 @@ class OryKratos extends PluggableAuth {
 	private AuthManager $authManager;
 	private IConnectionProvider $dbProvider;
 	private UserIdentityLookup $userIdentityLookup;
-
 	private FrontendApi $frontendApi;
 	private IdentityApi $identityApi;
 
@@ -70,12 +69,14 @@ class OryKratos extends PluggableAuth {
 		$publicHost = $this->frontendApi->getConfig()->getHost();
 
 		try {
+			// try to convert the Cookie header to a session
 			$session = $this->frontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
 			if ( !$session->getActive() ) {
 				throw new ApiException( code: 401 );
 			}
 		} catch ( ApiException $exception ) {
 			if ( $exception->getCode() == 401 || $exception->getCode() == 403 ) {
+				// no session or session is inactive; make the user reauthenticate
 				$location = $publicHost . '/self-service/login/browser?return_to='
 					. urlencode( SpecialPage::getTitleFor( 'PluggableAuthLogin' )->getFullURL() );
 				$request->response()->header( "Location: $location" );
@@ -87,38 +88,43 @@ class OryKratos extends PluggableAuth {
 		}
 
 		$identityId = $session->getIdentity()->getId();
+		// save the identity ID for later
 		$this->authManager->setAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY, $identityId );
 
+		// grab the identity traits
 		$username = $session->getIdentity()->getTraits()->username;
 		$email = $session->getIdentity()->getTraits()->email;
-		if ( isset( $session->getIdentity()->getTraits()->name ) ) {
+		if ( property_exists( $session->getIdentity()->getTraits(), 'name' ) ) {
 			$realname = $session->getIdentity()->getTraits()->name;
 		}
 
+		// see if there's a mapping for this identity
 		$dbr = $this->dbProvider->getReplicaDatabase();
 		$field = $dbr->newSelectQueryBuilder()
-			->select( [ 'user_id' ] )
+			->select( 'user_id' )
 			->from( 'user' )
-			->join(
-				'ory_kratos',
-				conds: 'user_id=kratos_user'
-			)
+			->join( 'ory_kratos', conds: 'user_id=kratos_user' )
 			->where( [
 				'kratos_id' => $identityId,
 				'kratos_host' => $publicHost
 			] )
 			->useIndex( 'ory_kratos_id' )
-			->caller( __METHOD__ )->fetchField();
+			->caller( __METHOD__ )
+			->fetchField();
 
 		if ( $field !== false ) {
+			// identity already mapped to MediaWiki user
 			$id = $field;
 		} else {
+			// find the MediaWiki user by the identity username trait
 			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $username );
 
 			if ( $userIdentity !== null && $userIdentity->isRegistered() ) {
+				// MediaWiki user exists and is registered, save the mapping
 				$id = $userIdentity->getId();
 				$this->saveExtraAttributes( $id );
 			} else {
+				// create a new MediaWiki user
 				$id = null;
 			}
 		}
@@ -133,23 +139,36 @@ class OryKratos extends PluggableAuth {
 
 	/** @inheritDoc */
 	public function deauthenticate( UserIdentity &$user ): void {
-		$dbr = $this->dbProvider->getReplicaDatabase();
+		self::logoutAllSessions( $user, $this->dbProvider, $this->frontendApi, $this->identityApi );
+	}
+
+	public static function logoutAllSessions(
+		UserIdentity $user,
+		IConnectionProvider $dbProvider,
+		FrontendApi $frontendApi,
+		IdentityApi $identityApi
+	): void {
+		// see if there's a mapping for this MediaWiki user
+		$dbr = $dbProvider->getReplicaDatabase();
 		$identityId = $dbr->newSelectQueryBuilder()
 			->select( 'kratos_id' )
 			->from( 'ory_kratos' )
 			->where( [
 				'kratos_user' => $user->getId(),
-				'kratos_host' => $this->frontendApi->getConfig()->getHost()
+				'kratos_host' => $frontendApi->getConfig()->getHost()
 			] )
 			->useIndex( 'ory_kratos_id' )
-			->caller( __METHOD__ )->fetchField();
+			->caller( __METHOD__ )
+			->fetchField();
 
 		if ( $identityId === false ) {
+			// no mapping
 			return;
 		}
 
 		try {
-			$this->identityApi->deleteIdentitySessions( $identityId );
+			// logout all sessions for the mapped identity
+			$identityApi->deleteIdentitySessions( $identityId );
 		} catch ( ApiException $exception ) {
 			wfLogWarning( $exception->getMessage() );
 		}
@@ -157,6 +176,7 @@ class OryKratos extends PluggableAuth {
 
 	/** @inheritDoc */
 	public function saveExtraAttributes( int $id ): void {
+		// retrieve the identity ID saved earlier
 		$identityId = $this->authManager->getAuthenticationSessionData( self::IDENTITY_ID_SESSION_KEY );
 
 		$dbw = $this->dbProvider->getPrimaryDatabase();
@@ -167,6 +187,7 @@ class OryKratos extends PluggableAuth {
 				'kratos_id' => $identityId,
 				'kratos_host' => $this->frontendApi->getConfig()->getHost()
 			] )
-			->caller( __METHOD__ )->execute();
+			->caller( __METHOD__ )
+			->execute();
 	}
 }
