@@ -13,6 +13,7 @@ use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
+use Ory\Kratos\Client\Model\Session;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
@@ -50,11 +51,27 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 		$this->kratosCookieName = $params['cookieName'] ?? 'ory_kratos_session';
 	}
 
+	/** @inheritDoc */
+	public function newSessionInfo( $id = null ): ?SessionInfo {
+		return new SessionInfo( $this->priority, [
+			'provider' => $this,
+			'id' => $id,
+			'idIsSafe' => true,
+			'userInfo' => UserInfo::newAnonymous(),
+			'persisted' => false
+		] );
+	}
+
 	public function provideSessionInfo( WebRequest $request ): ?SessionInfo {
 		try {
 			// try to convert the Cookie header to a session
-			$session = $this->frontendApi->toSession( cookie: $request->getHeader( 'Cookie' ) );
-			if ( !$session->getActive() ) {
+			$cookieHeader = $request->getHeader( 'Cookie' );
+			if ( $cookieHeader === false ) {
+				return null;
+			}
+
+			$session = $this->frontendApi->toSession( cookie: $cookieHeader );
+			if ( !$session instanceof Session || !$session->getActive() ) {
 				return null;
 			}
 		} catch ( ApiException ) {
@@ -72,7 +89,8 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 				'kratos_host' => $this->frontendApi->getConfig()->getHost()
 			] )
 			->useIndex( 'ory_kratos_id' )
-			->caller( __METHOD__ )->fetchField();
+			->caller( __METHOD__ )
+			->fetchField();
 
 		if ( $userId === false ) {
 			return null;
