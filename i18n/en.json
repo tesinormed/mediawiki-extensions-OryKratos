@@ -4,5 +4,5 @@
 			"tesinormed"
 		]
 	},
-	"orykratos-desc": "Adds support for Ory Kratos using PluggableAuth"
+	"orykratos-desc": "Replaces MediaWiki's session and authentication system with Ory Kratos"
 }
