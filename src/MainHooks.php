@@ -2,33 +2,27 @@
 
 namespace MediaWiki\Extension\OryKratos;
 
-use MediaWiki\Auth\Hook\LocalUserCreatedHook;
 use MediaWiki\Config\Config;
 use MediaWiki\Config\ConfigFactory;
 use MediaWiki\Hook\SkinTemplateNavigation__UniversalHook;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Preferences\Hook\GetPreferencesHook;
-use MediaWiki\RenameUser\Hook\RenameUserCompleteHook;
 use MediaWiki\Session\CookieSessionProvider;
 use MediaWiki\Settings\SettingsBuilder;
 use MediaWiki\SpecialPage\DisabledSpecialPage;
 use MediaWiki\SpecialPage\Hook\SpecialPage_initListHook;
 use RuntimeException;
-use Wikimedia\Rdbms\IConnectionProvider;
 
-class MainHookHandler implements
+class MainHooks implements
 	SkinTemplateNavigation__UniversalHook,
 	SpecialPage_initListHook,
-	GetPreferencesHook,
-	LocalUserCreatedHook,
-	RenameUserCompleteHook
+	GetPreferencesHook
 {
 	private readonly Config $config;
 
 	public function __construct(
 		private readonly Config $mainConfig,
-		ConfigFactory $configFactory,
-		private readonly IconnectionProvider $dbProvider,
+		ConfigFactory $configFactory
 	) {
 		$this->config = $configFactory->makeConfig( 'orykratos' );
 	}
@@ -124,42 +118,18 @@ class MainHookHandler implements
 	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/GetPreferences
 	 */
 	public function onGetPreferences( $user, &$preferences ): void {
+		// disable password
+		unset( $preferences['password'] );
+
 		// disable editing of realname
 		$preferences['realname']['type'] = 'info';
 
 		if ( $this->mainConfig->get( MainConfigNames::EnableEmail ) ) {
 			// disable editing of emailaddress
 			$preferences['emailaddress']['default'] = $user->getEmail() ? htmlspecialchars( $user->getEmail() ) : '';
+
+			// disable requireemail
+			unset( $preferences['requireemail'] );
 		}
-	}
-
-	/**
-	 * @inheritDoc
-	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/LocalUserCreated
-	 */
-	public function onLocalUserCreated( $user, $autocreated ): void {
-		if ( $user->isTemp() ) {
-			return;
-		}
-
-		$this->dbProvider->getPrimaryDatabase()->newInsertQueryBuilder()
-			->insertInto( 'orykratos_equiv' )
-			->row( [
-				'equiv_user' => $user->getId(),
-				'equiv_normalized' => OryKratos::getEquivset()->normalize( $user->getName() )
-			] )
-			->caller( __METHOD__ )->execute();
-	}
-
-	/**
-	 * @inheritDoc
-	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/RenameUserComplete
-	 */
-	public function onRenameUserComplete( int $uid, string $old, string $new ): void {
-		$this->dbProvider->getPrimaryDatabase()->newUpdateQueryBuilder()
-			->update( 'orykratos_equiv' )
-			->set( [ 'equiv_normalized' => OryKratos::getEquivset()->normalize( $new ) ] )
-			->where( [ 'equiv_user' => $uid ] )
-			->caller( __METHOD__ )->execute();
 	}
 }

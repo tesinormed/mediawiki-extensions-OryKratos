@@ -2,22 +2,26 @@
 
 namespace MediaWiki\Extension\OryKratos;
 
-use MediaWiki\Rest\SimpleHandler;
+use MediaWiki\Rest\Handler;
 use MediaWiki\User\UserIdentityLookup;
 use MediaWiki\User\UserNameUtils;
 use MediaWiki\User\UserRigorOptions;
+use Wikimedia\Equivset\Equivset;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\Rdbms\IConnectionProvider;
 
-class RestApiOryKratosUsernameUsable extends SimpleHandler {
+class RestApiOryKratosUsernameUsable extends Handler {
 	public function __construct(
 		private readonly UserNameUtils $userNameUtils,
 		private readonly UserIdentityLookup $userIdentityLookup,
-		private readonly IConnectionProvider $dbProvider
+		private readonly IConnectionProvider $dbProvider,
+		private readonly Equivset $equivset
 	) {
 	}
 
-	public function run( string $username ): array {
+	public function execute(): array {
+		$username = $this->getValidatedBody()['username'];
+
 		$canonicalUsername = $this->userNameUtils->getCanonical( $username, UserRigorOptions::RIGOR_CREATABLE );
 		if ( $canonicalUsername === false ) {
 			return [
@@ -33,17 +37,17 @@ class RestApiOryKratosUsernameUsable extends SimpleHandler {
 			];
 		}
 
-		$equivalentUserId = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
-			->select( 'equiv_user' )
-			->from( 'orykratos_equiv' )
-			->where( [ 'equiv_normalized' => OryKratos::getEquivset()->normalize( $canonicalUsername ) ] )
+		$equivalentUsername = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
+			->select( 'user_name' )
+			->from( 'user' )
+			->join( 'orykratos_equiv', conds: 'user_id=equiv_user' )
+			->where( [ 'equiv_normalized' => $this->equivset->normalize( $canonicalUsername ) ] )
 			->limit( 1 )
 			->caller( __METHOD__ )->fetchField();
-		if ( $equivalentUserId !== false ) {
+		if ( $equivalentUsername !== false ) {
 			return [
 				'usable' => false,
-				'reason' => 'Username is too similar to another username: '
-					. $this->userIdentityLookup->getUserIdentityByUserId( $equivalentUserId )->getName()
+				'reason' => 'Username is too similar to a taken username: ' . $equivalentUsername
 			];
 		}
 
@@ -51,12 +55,13 @@ class RestApiOryKratosUsernameUsable extends SimpleHandler {
 	}
 
 	/** @inheritDoc */
-	public function getParamSettings(): array {
+	public function getBodyParamSettings(): array
+	{
 		return [
 			'username' => [
 				self::PARAM_SOURCE => 'body',
 				ParamValidator::PARAM_TYPE => 'string',
-				ParamValidator::PARAM_REQUIRED => true,
+				ParamValidator::PARAM_REQUIRED => true
 			],
 		];
 	}

@@ -2,7 +2,6 @@
 
 namespace MediaWiki\Extension\OryKratos;
 
-use GuzzleHttp\Client;
 use MediaWiki\Config\ConfigFactory;
 use MediaWiki\Request\WebRequest;
 use MediaWiki\Session\SessionBackend;
@@ -14,31 +13,20 @@ use MediaWiki\User\UserIdentityLookup;
 use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;
-use Ory\Kratos\Client\Configuration;
-use Wikimedia\Rdbms\IConnectionProvider;
 
 class OryKratosSessionProvider extends SessionProvider {
-	private readonly FrontendApi $frontendApi;
-	private readonly IdentityApi $identityApi;
 	private readonly string $kratosSessionCookie;
 
 	public function __construct(
 		ConfigFactory $configFactory,
-		private readonly IConnectionProvider $dbProvider,
+		private readonly FrontendApi $frontendApi,
+		private readonly IdentityApi $identityApi,
 		private readonly UserIdentityLookup $userIdentityLookup
 	) {
 		parent::__construct();
 
 		$config = $configFactory->makeConfig( 'orykratos' );
 
-		$this->frontendApi = new FrontendApi(
-			new Client(),
-			( new Configuration() )->setHost( $config->get( 'OryKratosPublicHost' ) )
-		);
-		$this->identityApi = new IdentityApi(
-			new Client(),
-			( new Configuration() )->setHost( $config->get( 'OryKratosAdminHost' ) )
-		);
 		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' ) ?? 'ory_kratos_session';
 		$this->priority = 30;
 	}
@@ -61,30 +49,24 @@ class OryKratosSessionProvider extends SessionProvider {
 		}
 
 		$identity = $session->getIdentity();
-		// see if there's a mapping for this identity
-		$userId = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
-			->select( 'kratos_user' )
-			->from( 'orykratos' )
-			->where( [ 'kratos_identity' => $identity->getId() ] )
-			->useIndex( 'orykratos_user_identity' )
-			->caller( __METHOD__ )->fetchField();
 
-		if ( $userId === false ) {
+		// see if there's a mapping for this identity
+		$userId = OryKratosTable::findUserIdFromIdentity( $identity );
+		if ( $userId !== false ) {
+			$userInfo = UserInfo::newFromId( $userId, verified: true );
+		} else {
+			$username = $identity->getTraits()->username;
 			// find the MediaWiki user by the identity username trait
-			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $identity->getTraits()->username );
+			$userIdentity = $this->userIdentityLookup->getUserIdentityByName( $username );
 
 			if ( $userIdentity !== null && $userIdentity->isRegistered() ) {
 				// MediaWiki user exists and is registered, save the mapping
-				$userId = $userIdentity->getId();
-				$this->dbProvider->getPrimaryDatabase()->newInsertQueryBuilder()
-					->insertInto( 'orykratos' )
-					->row( [
-						'kratos_user' => $userId,
-						'kratos_identity' => $identity->getId()
-					] )
-					->caller( __METHOD__ )->execute();
+				OryKratosTable::saveUserToIdentityMapping( $userIdentity, $identity );
+
+				$userInfo = UserInfo::newFromId( $userIdentity->getId(), verified: true );
 			} else {
-				return null;
+				// no user exists, auto-create user later
+				$userInfo = UserInfo::newFromName( $username, verified: true );
 			}
 		}
 
@@ -92,7 +74,7 @@ class OryKratosSessionProvider extends SessionProvider {
 		return new SessionInfo( $this->priority, [
 			'provider' => $this,
 			'id' => $session->getId(),
-			'userInfo' => UserInfo::newFromId( $userId, verified: true ),
+			'userInfo' => $userInfo,
 			'persisted' => true
 		] );
 	}
@@ -129,12 +111,7 @@ class OryKratosSessionProvider extends SessionProvider {
 	/** @inheritDoc */
 	public function invalidateSessionsForUser( User $user ): void {
 		// see if there's a mapping for this MediaWiki user
-		$identityId = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
-			->select( 'kratos_identity' )
-			->from( 'orykratos' )
-			->where( [ 'kratos_user' => $user->getId() ] )
-			->useIndex( 'orykratos_user_identity' )
-			->caller( __METHOD__ )->fetchField();
+		$identityId = OryKratosTable::findIdentityIdFromUser( $user );
 		if ( $identityId === false ) {
 			// no mapping
 			return;
@@ -144,7 +121,7 @@ class OryKratosSessionProvider extends SessionProvider {
 			// logout all sessions for the mapped identity
 			$this->identityApi->deleteIdentitySessions( $identityId );
 		} catch ( ApiException $exception ) {
-			wfLogWarning( $exception->getMessage() );
+			wfLogWarning( 'failed to delete identity sessions: ' . $exception->getMessage() );
 		}
 	}
 
@@ -155,6 +132,7 @@ class OryKratosSessionProvider extends SessionProvider {
 
 	/** @inheritDoc */
 	public function safeAgainstCsrf(): bool {
+		// Ory Kratos already has CSRF protection
 		return true;
 	}
 }
