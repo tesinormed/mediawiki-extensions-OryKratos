@@ -1,0 +1,38 @@
+[
+	{
+		"name": "orykratos_equiv",
+		"columns": [
+			{
+				"name": "equiv_user",
+				"comment": "User ID",
+				"type": "integer",
+				"options": {
+					"unsigned": true,
+					"notnull": true
+				}
+			},
+			{
+				"name": "equiv_normalized",
+				"comment": "Username normalized using Equivset",
+				"type": "binary",
+				"options": {
+					"notnull": true,
+					"length": 255
+				}
+			}
+		],
+		"indexes": [
+			{
+				"name": "orykratos_equiv_user_normalized",
+				"columns": [
+					"equiv_user",
+					"equiv_normalized"
+				],
+				"unique": false
+			}
+		],
+		"pk": [
+			"equiv_user"
+		]
+	}
+]

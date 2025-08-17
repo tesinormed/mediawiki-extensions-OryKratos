@@ -5,8 +5,9 @@ namespace MediaWiki\Extension\OryKratos;
 use GuzzleHttp\Client;
 use MediaWiki\Config\ConfigFactory;
 use MediaWiki\Request\WebRequest;
-use MediaWiki\Session\ImmutableSessionProviderWithCookie;
+use MediaWiki\Session\SessionBackend;
 use MediaWiki\Session\SessionInfo;
+use MediaWiki\Session\SessionProvider;
 use MediaWiki\Session\UserInfo;
 use MediaWiki\User\User;
 use MediaWiki\User\UserIdentityLookup;
@@ -16,24 +17,20 @@ use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Configuration;
 use Wikimedia\Rdbms\IConnectionProvider;
 
-class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
-	private IConnectionProvider $dbProvider;
-	private UserIdentityLookup $userIdentityLookup;
-	private FrontendApi $frontendApi;
-	private IdentityApi $identityApi;
-	private string $kratosSessionCookie;
+class OryKratosSessionProvider extends SessionProvider {
+	private readonly FrontendApi $frontendApi;
+	private readonly IdentityApi $identityApi;
+	private readonly string $kratosSessionCookie;
 
 	public function __construct(
 		ConfigFactory $configFactory,
-		IConnectionProvider $dbProvider,
-		UserIdentityLookup $userIdentityLookup
+		private readonly IConnectionProvider $dbProvider,
+		private readonly UserIdentityLookup $userIdentityLookup
 	) {
 		parent::__construct();
 
 		$config = $configFactory->makeConfig( 'orykratos' );
 
-		$this->dbProvider = $dbProvider;
-		$this->userIdentityLookup = $userIdentityLookup;
 		$this->frontendApi = new FrontendApi(
 			new Client(),
 			( new Configuration() )->setHost( $config->get( 'OryKratosPublicHost' ) )
@@ -44,17 +41,6 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 		);
 		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' ) ?? 'ory_kratos_session';
 		$this->priority = 30;
-	}
-
-	/** @inheritDoc */
-	public function newSessionInfo( $id = null ): ?SessionInfo {
-		return new SessionInfo( $this->priority, [
-			'provider' => $this,
-			'id' => $id,
-			'idIsSafe' => true,
-			'userInfo' => UserInfo::newAnonymous(),
-			'persisted' => false
-		] );
 	}
 
 	/** @inheritDoc */
@@ -77,14 +63,10 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 		$identity = $session->getIdentity();
 		// see if there's a mapping for this identity
 		$userId = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
-			->select( 'user_id' )
-			->from( 'user' )
-			->join( 'ory_kratos', conds: 'user_id=kratos_user' )
-			->where( [
-				'kratos_id' => $identity->getId(),
-				'kratos_host' => $this->frontendApi->getConfig()->getHost()
-			] )
-			->useIndex( 'ory_kratos_id' )
+			->select( 'kratos_user' )
+			->from( 'orykratos' )
+			->where( [ 'kratos_identity' => $identity->getId() ] )
+			->useIndex( 'orykratos_user_identity' )
 			->caller( __METHOD__ )->fetchField();
 
 		if ( $userId === false ) {
@@ -95,11 +77,10 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 				// MediaWiki user exists and is registered, save the mapping
 				$userId = $userIdentity->getId();
 				$this->dbProvider->getPrimaryDatabase()->newInsertQueryBuilder()
-					->insertInto( 'ory_kratos' )
+					->insertInto( 'orykratos' )
 					->row( [
 						'kratos_user' => $userId,
-						'kratos_id' => $identity->getId(),
-						'kratos_host' => $this->frontendApi->getConfig()->getHost()
+						'kratos_identity' => $identity->getId()
 					] )
 					->caller( __METHOD__ )->execute();
 			} else {
@@ -117,16 +98,42 @@ class OryKratosSessionProvider extends ImmutableSessionProviderWithCookie {
 	}
 
 	/** @inheritDoc */
+	public function newSessionInfo( $id = null ): ?SessionInfo {
+		return new SessionInfo( $this->priority, [
+			'provider' => $this,
+			'id' => $id,
+			'idIsSafe' => true,
+			'userInfo' => UserInfo::newAnonymous(),
+			'persisted' => false
+		] );
+	}
+
+	/** @inheritDoc */
+	public function persistsSessionId(): bool {
+		return false;
+	}
+
+	/** @inheritDoc */
+	public function canChangeUser(): bool {
+		return false;
+	}
+
+	/** @inheritDoc */
+	public function persistSession( SessionBackend $session, WebRequest $request ): void {
+	}
+
+	/** @inheritDoc */
+	public function unpersistSession( WebRequest $request ): void {
+	}
+
+	/** @inheritDoc */
 	public function invalidateSessionsForUser( User $user ): void {
 		// see if there's a mapping for this MediaWiki user
 		$identityId = $this->dbProvider->getReplicaDatabase()->newSelectQueryBuilder()
-			->select( 'kratos_id' )
-			->from( 'ory_kratos' )
-			->where( [
-				'kratos_user' => $user->getId(),
-				'kratos_host' => $this->frontendApi->getConfig()->getHost()
-			] )
-			->useIndex( 'ory_kratos_id' )
+			->select( 'kratos_identity' )
+			->from( 'orykratos' )
+			->where( [ 'kratos_user' => $user->getId() ] )
+			->useIndex( 'orykratos_user_identity' )
 			->caller( __METHOD__ )->fetchField();
 		if ( $identityId === false ) {
 			// no mapping

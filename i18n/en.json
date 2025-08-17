@@ -4,5 +4,6 @@
 			"tesinormed"
 		]
 	},
-	"orykratos-desc": "Replaces MediaWiki's session and authentication system with Ory Kratos"
+	"orykratos-desc": "Replaces MediaWiki's session and authentication system with Ory Kratos",
+	"orykratos-usermenu-text": "Login dashboard"
 }

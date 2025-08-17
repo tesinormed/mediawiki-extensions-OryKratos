@@ -1,6 +1,6 @@
 [
 	{
-		"name": "ory_kratos",
+		"name": "orykratos",
 		"columns": [
 			{
 				"name": "kratos_user",
@@ -12,28 +12,21 @@
 				}
 			},
 			{
-				"name": "kratos_id",
-				"comment": "Kratos identity ID",
-				"type": "blob",
+				"name": "kratos_identity",
+				"comment": "Ory Kratos identity ID",
+				"type": "binary",
 				"options": {
-					"notnull": true
-				}
-			},
-			{
-				"name": "kratos_host",
-				"comment": "Kratos host",
-				"type": "blob",
-				"options": {
-					"notnull": true
+					"notnull": true,
+					"length": 36
 				}
 			}
 		],
 		"indexes": [
 			{
-				"name": "ory_kratos_id",
+				"name": "orykratos_user_identity",
 				"columns": [
-					"kratos_id",
-					"kratos_host"
+					"kratos_user",
+					"kratos_identity"
 				],
 				"unique": false
 			}

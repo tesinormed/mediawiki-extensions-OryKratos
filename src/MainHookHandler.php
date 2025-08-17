@@ -2,29 +2,34 @@
 
 namespace MediaWiki\Extension\OryKratos;
 
+use MediaWiki\Auth\Hook\LocalUserCreatedHook;
 use MediaWiki\Config\Config;
 use MediaWiki\Config\ConfigFactory;
 use MediaWiki\Hook\SkinTemplateNavigation__UniversalHook;
-use MediaWiki\Installer\Hook\LoadExtensionSchemaUpdatesHook;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Preferences\Hook\GetPreferencesHook;
+use MediaWiki\RenameUser\Hook\RenameUserCompleteHook;
 use MediaWiki\Session\CookieSessionProvider;
 use MediaWiki\Settings\SettingsBuilder;
 use MediaWiki\SpecialPage\DisabledSpecialPage;
 use MediaWiki\SpecialPage\Hook\SpecialPage_initListHook;
 use RuntimeException;
+use Wikimedia\Rdbms\IConnectionProvider;
 
 class MainHookHandler implements
 	SkinTemplateNavigation__UniversalHook,
 	SpecialPage_initListHook,
 	GetPreferencesHook,
-	LoadExtensionSchemaUpdatesHook
+	LocalUserCreatedHook,
+	RenameUserCompleteHook
 {
-	private Config $mainConfig;
-	private Config $config;
+	private readonly Config $config;
 
-	public function __construct( Config $mainConfig, ConfigFactory $configFactory ) {
-		$this->mainConfig = $mainConfig;
+	public function __construct(
+		private readonly Config $mainConfig,
+		ConfigFactory $configFactory,
+		private readonly IconnectionProvider $dbProvider,
+	) {
 		$this->config = $configFactory->makeConfig( 'orykratos' );
 	}
 
@@ -44,9 +49,6 @@ class MainHookHandler implements
 		}
 		if ( $settings->getConfig()->get( 'OryKratosAdminHost' ) === '' ) {
 			throw new RuntimeException( '$wgOryKratosAdminHost must be set' );
-		}
-		if ( $settings->getConfig()->get( 'OryKratosLoginUrl' ) === '' ) {
-			throw new RuntimeException( '$wgOryKratosLoginUrl must be set' );
 		}
 		if ( $settings->getConfig()->get( 'OryKratosUiUrl' ) === '' ) {
 			throw new RuntimeException( '$wgOryKratosUiUrl must be set' );
@@ -73,16 +75,19 @@ class MainHookHandler implements
 			$links['user-menu']['logout'] = [
 				'single-id' => 'pt-logout',
 				'text' => $sktemplate->msg( 'pt-userlogout' )->text(),
-				'href' => $this->config->get( 'OryKratosLogoutUrl' ),
+				'href' => $this->config->get( 'OryKratosLogoutUrl' )
+					. '?return_to='
+					. urlencode( $sktemplate->getTitle()->getFullURL() ),
 				'active' => false,
 				'icon' => 'logOut'
 			];
-
 		} else {
 			$links['user-menu']['login'] = [
 				'single-id' => 'pt-login',
 				'text' => $sktemplate->msg( 'pt-login' )->text(),
-				'href' => $this->config->get( 'OryKratosLoginUrl' ),
+				'href' => $this->config->get( 'OryKratosPublicHost' )
+					. '/self-service/login/browser?return_to='
+					. urlencode( $sktemplate->getTitle()->getFullURL() ),
 				'active' => false,
 				'icon' => 'logIn'
 			];
@@ -130,10 +135,31 @@ class MainHookHandler implements
 
 	/**
 	 * @inheritDoc
-	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/LoadExtensionSchemaUpdates
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/LocalUserCreated
 	 */
-	public function onLoadExtensionSchemaUpdates( $updater ): void {
-		$dir = __DIR__ . '/../sql/' . $updater->getDB()->getType() . '/';
-		$updater->addExtensionTable( 'ory_kratos', $dir . 'ory_kratos.sql' );
+	public function onLocalUserCreated( $user, $autocreated ): void {
+		if ( $user->isTemp() ) {
+			return;
+		}
+
+		$this->dbProvider->getPrimaryDatabase()->newInsertQueryBuilder()
+			->insertInto( 'orykratos_equiv' )
+			->row( [
+				'equiv_user' => $user->getId(),
+				'equiv_normalized' => OryKratos::getEquivset()->normalize( $user->getName() )
+			] )
+			->caller( __METHOD__ )->execute();
+	}
+
+	/**
+	 * @inheritDoc
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/RenameUserComplete
+	 */
+	public function onRenameUserComplete( int $uid, string $old, string $new ): void {
+		$this->dbProvider->getPrimaryDatabase()->newUpdateQueryBuilder()
+			->update( 'orykratos_equiv' )
+			->set( [ 'equiv_normalized' => OryKratos::getEquivset()->normalize( $new ) ] )
+			->where( [ 'equiv_user' => $uid ] )
+			->caller( __METHOD__ )->execute();
 	}
 }

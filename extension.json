@@ -1,6 +1,6 @@
 {
 	"name": "OryKratos",
-	"version": "0.10.0",
+	"version": "0.11.0",
 	"author": [
 		"tesinormed"
 	],
@@ -9,7 +9,7 @@
 	"license-name": "CC0-1.0",
 	"type": "other",
 	"requires": {
-		"MediaWiki": ">= 1.43.0",
+		"MediaWiki": ">= 1.43",
 		"platform": {
 			"php": ">= 8.1"
 		}
@@ -27,9 +27,6 @@
 		"OryKratosSessionCookie": {
 			"value": "ory_kratos_session"
 		},
-		"OryKratosLoginUrl": {
-			"value": ""
-		},
 		"OryKratosUiUrl": {
 			"value": ""
 		},
@@ -46,14 +43,21 @@
 			"class": "MediaWiki\\Extension\\OryKratos\\MainHookHandler",
 			"services": [
 				"MainConfig",
-				"ConfigFactory"
+				"ConfigFactory",
+				"ConnectionProvider"
 			]
+		},
+		"schema": {
+			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks"
 		}
 	},
 	"Hooks": {
+		"LoadExtensionSchemaUpdates": "schema",
 		"SkinTemplateNavigation::Universal": "main",
+		"SpecialPage_initList": "main",
 		"GetPreferences": "main",
-		"LoadExtensionSchemaUpdates": "main"
+		"LocalUserCreated": "main",
+		"RenameUserComplete": "main"
 	},
 	"SessionProviders": {
 		"MediaWiki\\Extension\\OryKratos\\OryKratosSessionProvider": {
@@ -65,6 +69,18 @@
 			]
 		}
 	},
+	"RestRoutes": [
+		{
+			"path": "/orykratos/v0/username/usable",
+			"method": "PUT",
+			"class": "MediaWiki\\Extension\\OryKratos\\RestApiOryKratosUsernameUsable",
+			"services": [
+				"UserNameUtils",
+				"UserIdentityLookup",
+				"ConnectionProvider"
+			]
+		}
+	],
 	"MessagesDirs": {
 		"OryKratos": [
 			"i18n"

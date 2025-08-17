@@ -1,6 +1,7 @@
 {
 	"require": {
-		"ory/kratos-client-php": "1.3.8"
+		"ory/kratos-client-php": "^1.3.8",
+		"wikimedia/equivset": "^1.7.1"
 	},
 	"require-dev": {
 		"mediawiki/mediawiki-codesniffer": "47.0.0",
