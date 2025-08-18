@@ -4,13 +4,17 @@ namespace MediaWiki\Extension\OryKratos;
 
 use MediaWiki\Auth\Hook\LocalUserCreatedHook;
 use MediaWiki\RenameUser\Hook\RenameUserCompleteHook;
+use Ory\Kratos\Client\Api\IdentityApi;
+use Ory\Kratos\Client\ApiException;
+use Ory\Kratos\Client\Model\JsonPatch;
 use Wikimedia\Equivset\Equivset;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class UserHooks implements LocalUserCreatedHook, RenameUserCompleteHook {
 	public function __construct(
 		private readonly IConnectionProvider $dbProvider,
-		private readonly Equivset $equivset
+		private readonly Equivset $equivset,
+		private readonly IdentityApi $identityApi
 	) {
 	}
 
@@ -42,5 +46,20 @@ class UserHooks implements LocalUserCreatedHook, RenameUserCompleteHook {
 			->set( [ 'equiv_normalized' => $this->equivset->normalize( $new ) ] )
 			->where( [ 'equiv_user' => $uid ] )
 			->caller( __METHOD__ )->execute();
+
+		$identityId = OryKratosTable::findIdentityIdFromUser( $uid );
+		if ( $identityId === false ) {
+			return;
+		}
+
+		try {
+			$this->identityApi->patchIdentity( $identityId, [ new JsonPatch( [
+				'op' => 'replace',
+				'path' => '/traits/username',
+				'value' => $new
+			] ) ] );
+		} catch ( ApiException $exception ) {
+			wfLogWarning( 'failed to patch identity: ' . $exception->getMessage() );
+		}
 	}
 }

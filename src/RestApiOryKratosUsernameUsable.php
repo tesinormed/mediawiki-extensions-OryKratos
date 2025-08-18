@@ -55,8 +55,7 @@ class RestApiOryKratosUsernameUsable extends Handler {
 	}
 
 	/** @inheritDoc */
-	public function getBodyParamSettings(): array
-	{
+	public function getBodyParamSettings(): array {
 		return [
 			'username' => [
 				self::PARAM_SOURCE => 'body',

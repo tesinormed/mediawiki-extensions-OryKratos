@@ -16,11 +16,15 @@ class OryKratosTable {
 			->caller( __METHOD__ )->fetchField();
 	}
 
-	public static function findIdentityIdFromUser( UserIdentity $user ): string|false {
+	public static function findIdentityIdFromUser( UserIdentity|int $user ): string|false {
+		if ( $user instanceof UserIdentity ) {
+			$user = $user->getId();
+		}
+
 		return MediaWikiServices::getInstance()->getConnectionProvider()->getReplicaDatabase()->newSelectQueryBuilder()
 			->select( 'kratos_identity' )
 			->from( 'orykratos' )
-			->where( [ 'kratos_user' => $user->getId() ] )
+			->where( [ 'kratos_user' => $user ] )
 			->useIndex( 'orykratos_user_identity' )
 			->caller( __METHOD__ )->fetchField();
 	}
