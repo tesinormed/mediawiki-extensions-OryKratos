@@ -32,9 +32,19 @@ class SessionHooks implements UserLoadAfterLoadFromSessionHook {
 		$dirty = false;
 
 		if ( $user->getEmail() !== $identity->getTraits()->email ) {
+			// new email (implicit invalidateEmail())
 			$user->setEmail( $identity->getTraits()->email );
+			if ( $identity->getVerifiableAddresses()[0]->getVerified() ) {
+				// verified email
+				$user->confirmEmail();
+			}
+			$dirty = true;
+		} elseif ( !$user->isEmailConfirmed() && $identity->getVerifiableAddresses()[0]->getVerified() ) {
+			// previously unverified email has been verified
+			$user->confirmEmail();
 			$dirty = true;
 		}
+
 		if ( property_exists( $identity->getTraits(), 'name' )
 			&& $user->getRealName() !== $identity->getTraits()->name
 		) {
