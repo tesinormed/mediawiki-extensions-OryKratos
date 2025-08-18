@@ -19,6 +19,7 @@ class RestApiOryKratosUsernameUsable extends Handler {
 	) {
 	}
 
+	/** @inheritDoc */
 	public function execute(): array {
 		$username = $this->getValidatedBody()['username'];
 

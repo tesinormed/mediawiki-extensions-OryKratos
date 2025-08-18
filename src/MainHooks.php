@@ -125,11 +125,19 @@ class MainHooks implements
 		$preferences['realname']['type'] = 'info';
 
 		if ( $this->mainConfig->get( MainConfigNames::EnableEmail ) ) {
-			// disable editing of emailaddress
+			// remove Special:ChangeEmail link
 			$preferences['emailaddress']['default'] = $user->getEmail() ? htmlspecialchars( $user->getEmail() ) : '';
 
 			// disable requireemail
 			unset( $preferences['requireemail'] );
+
+			// remove Special:ConfirmEmail link
+			if ( $this->mainConfig->get( MainConfigNames::EmailAuthentication )
+				&& $user->getEmail()
+				&& !$user->getEmailAuthenticationTimestamp()
+			) {
+				$preferences['emailauthentication']['default'] = wfMessage( 'emailnotauthenticated' )->parse();
+			}
 		}
 	}
 }

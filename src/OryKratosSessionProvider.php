@@ -129,10 +129,4 @@ class OryKratosSessionProvider extends SessionProvider {
 	public function getVaryCookies(): array {
 		return [ $this->kratosSessionCookie ];
 	}
-
-	/** @inheritDoc */
-	public function safeAgainstCsrf(): bool {
-		// Ory Kratos already has CSRF protection
-		return true;
-	}
 }
