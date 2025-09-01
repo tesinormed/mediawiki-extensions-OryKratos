@@ -76,6 +76,16 @@ class MainHooks implements
 				'icon' => 'logOut'
 			];
 		} else {
+			$links['user-menu']['createaccount'] = [
+				'single-id' => 'pt-createaccount',
+				'text' => $sktemplate->msg( 'pt-createaccount' )->text(),
+				'href' => $this->config->get( 'OryKratosPublicHost' )
+					. '/self-service/registration/browser?return_to='
+					. urlencode( $sktemplate->getTitle()->getFullURL() ),
+				'active' => false,
+				'icon' => 'userAdd'
+			];
+
 			$links['user-menu']['login'] = [
 				'single-id' => 'pt-login',
 				'text' => $sktemplate->msg( 'pt-login' )->text(),
