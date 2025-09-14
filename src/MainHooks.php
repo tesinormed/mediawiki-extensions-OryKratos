@@ -1,11 +1,9 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\Hook;
+namespace MediaWiki\Extension\OryKratos;
 
 use MediaWiki\Config\Config;
 use MediaWiki\Config\ConfigFactory;
-use MediaWiki\Extension\OryKratos\Session\OryKratosSessionProvider;
-use MediaWiki\Extension\OryKratos\SpecialPage\ExternalRedirectSpecialPage;
 use MediaWiki\Hook\SkinTemplateNavigation__UniversalHook;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Preferences\Hook\GetPreferencesHook;

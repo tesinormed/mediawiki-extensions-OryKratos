@@ -1,9 +1,8 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\Hook;
+namespace MediaWiki\Extension\OryKratos;
 
 use MediaWiki\Auth\Hook\LocalUserCreatedHook;
-use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\RenameUser\Hook\RenameUserCompleteHook;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;

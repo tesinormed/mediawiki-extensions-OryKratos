@@ -1,8 +1,7 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\Rest;
+namespace MediaWiki\Extension\OryKratos;
 
-use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\Rest\Handler;
 use MediaWiki\User\UserIdentityLookup;
 use MediaWiki\User\UserNameUtils;

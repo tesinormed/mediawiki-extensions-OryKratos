@@ -1,9 +1,8 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\Session;
+namespace MediaWiki\Extension\OryKratos;
 
 use MediaWiki\Config\ConfigFactory;
-use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\Request\WebRequest;
 use MediaWiki\Session\SessionBackend;
 use MediaWiki\Session\SessionInfo;
@@ -28,7 +27,7 @@ class OryKratosSessionProvider extends SessionProvider {
 
 		$config = $configFactory->makeConfig( 'orykratos' );
 
-		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' ) ?? 'ory_kratos_session';
+		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' );
 		$this->priority = 30;
 	}
 

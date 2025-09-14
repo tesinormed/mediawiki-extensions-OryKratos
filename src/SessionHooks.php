@@ -1,8 +1,7 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\Hook;
+namespace MediaWiki\Extension\OryKratos;
 
-use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\User\Hook\UserLoadAfterLoadFromSessionHook;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;

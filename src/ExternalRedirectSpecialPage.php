@@ -1,6 +1,6 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos\SpecialPage;
+namespace MediaWiki\Extension\OryKratos;
 
 use Closure;
 use MediaWiki\SpecialPage\UnlistedSpecialPage;
