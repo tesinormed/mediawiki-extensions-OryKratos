@@ -5,8 +5,18 @@ namespace MediaWiki\Extension\OryKratos;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 use Ory\Kratos\Client\Model\Identity;
+use Wikimedia\Equivset\Equivset;
 
-class OryKratosTable {
+class OryKratos {
+	private static Equivset $equivset;
+
+	public static function getEquivset(): Equivset {
+		if ( self::$equivset === null ) {
+			self::$equivset = new Equivset();
+		}
+		return self::$equivset;
+	}
+
 	public static function findUserIdFromIdentity( Identity $identity ): int|false {
 		return MediaWikiServices::getInstance()->getConnectionProvider()->getReplicaDatabase()->newSelectQueryBuilder()
 			->select( 'kratos_user' )

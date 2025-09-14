@@ -3,6 +3,7 @@
 namespace MediaWiki\Extension\OryKratos\Maintenance;
 
 use BatchRowIterator;
+use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\Maintenance\Maintenance;
 
 $IP = getenv( 'MW_INSTALL_PATH' );
@@ -32,14 +33,13 @@ class PopulateEquivTable extends Maintenance {
 		$iterator->setCaller( __METHOD__ );
 
 		$tempUserConfig = $this->getServiceContainer()->getTempUserConfig();
-		$equivset = $this->getServiceContainer()->getService( 'OryKratos.Equivset' );
 
 		$count = 0;
 		foreach ( $iterator as $batch ) {
 			$usernames = array_map(
 				static fn ( $row ) => [
 					'equiv_user' => $row->user_id,
-					'equiv_normalized' => $equivset->normalize( $row->user_name )
+					'equiv_normalized' => OryKratos::getEquivset()->normalize( $row->user_name )
 				],
 				array_filter(
 					$batch,

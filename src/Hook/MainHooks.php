@@ -1,9 +1,11 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Hook;
 
 use MediaWiki\Config\Config;
 use MediaWiki\Config\ConfigFactory;
+use MediaWiki\Extension\OryKratos\Session\OryKratosSessionProvider;
+use MediaWiki\Extension\OryKratos\SpecialPage\ExternalRedirectSpecialPage;
 use MediaWiki\Hook\SkinTemplateNavigation__UniversalHook;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Preferences\Hook\GetPreferencesHook;
@@ -11,6 +13,7 @@ use MediaWiki\Session\CookieSessionProvider;
 use MediaWiki\Settings\SettingsBuilder;
 use MediaWiki\SpecialPage\DisabledSpecialPage;
 use MediaWiki\SpecialPage\Hook\SpecialPage_initListHook;
+use MediaWiki\SpecialPage\SpecialPage;
 use RuntimeException;
 
 class MainHooks implements
@@ -69,9 +72,10 @@ class MainHooks implements
 			$links['user-menu']['logout'] = [
 				'single-id' => 'pt-logout',
 				'text' => $sktemplate->msg( 'pt-userlogout' )->text(),
-				'href' => $this->config->get( 'OryKratosLogoutUrl' )
-					. '?return_to='
-					. urlencode( $sktemplate->getTitle()->getFullURL() ),
+				'href' => $this->generateReturnToUrl(
+					$this->config->get( 'OryKratosLogoutUrl' ),
+					returnTo: $sktemplate->getTitle()->getFullURL()
+				),
 				'active' => false,
 				'icon' => 'logOut'
 			];
@@ -79,9 +83,10 @@ class MainHooks implements
 			$links['user-menu']['createaccount'] = [
 				'single-id' => 'pt-createaccount',
 				'text' => $sktemplate->msg( 'pt-createaccount' )->text(),
-				'href' => $this->config->get( 'OryKratosPublicHost' )
-					. '/self-service/registration/browser?return_to='
-					. urlencode( $sktemplate->getTitle()->getFullURL() ),
+				'href' => $this->generateFlowUrl(
+					'registration',
+					returnTo: $sktemplate->getTitle()->getFullURL()
+				),
 				'active' => false,
 				'icon' => 'userAdd'
 			];
@@ -89,9 +94,10 @@ class MainHooks implements
 			$links['user-menu']['login'] = [
 				'single-id' => 'pt-login',
 				'text' => $sktemplate->msg( 'pt-login' )->text(),
-				'href' => $this->config->get( 'OryKratosPublicHost' )
-					. '/self-service/login/browser?return_to='
-					. urlencode( $sktemplate->getTitle()->getFullURL() ),
+				'href' => $this->generateFlowUrl(
+					'login',
+					returnTo: $sktemplate->getTitle()->getFullURL()
+				),
 				'active' => false,
 				'icon' => 'logIn'
 			];
@@ -114,12 +120,20 @@ class MainHooks implements
 			'ChangePassword' => true,
 			'PasswordReset' => true,
 			'ChangeEmail' => $this->mainConfig->get( MainConfigNames::EnableEmail ),
-			'Confirmemail' => $this->mainConfig->get( MainConfigNames::EnableEmail ),
 			'Invalidateemail' => $this->mainConfig->get( MainConfigNames::EnableEmail ),
 		];
 
 		foreach ( array_keys( array_filter( $disabledSpecialPages ) ) as $page ) {
 			$list[$page] = DisabledSpecialPage::getCallback( $page );
+		}
+
+		if ( $this->mainConfig->get( MainConfigNames::EnableEmail ) ) {
+			$list['Confirmemail'] = ExternalRedirectSpecialPage::getCallback( 'Confirmemail',
+				url: $this->generateFlowUrl(
+					'verification',
+					returnTo: SpecialPage::getTitleFor( 'Preferences' )->getFullURL()
+				)
+			);
 		}
 	}
 
@@ -140,14 +154,17 @@ class MainHooks implements
 
 			// disable requireemail
 			unset( $preferences['requireemail'] );
-
-			// remove Special:ConfirmEmail link
-			if ( $this->mainConfig->get( MainConfigNames::EmailAuthentication )
-				&& $user->getEmail()
-				&& !$user->getEmailAuthenticationTimestamp()
-			) {
-				$preferences['emailauthentication']['default'] = wfMessage( 'emailnotauthenticated' )->parse();
-			}
 		}
+	}
+
+	private function generateFlowUrl( string $flow, string $returnTo ): string {
+		return $this->generateReturnToUrl(
+			$this->config->get( 'OryKratosPublicHost' ) . '/self-service/' . $flow . '/browser',
+			$returnTo
+		);
+	}
+
+	private function generateReturnToUrl( string $url, string $returnTo ): string {
+		return $url . '?return_to=' . urlencode( $returnTo );
 	}
 }

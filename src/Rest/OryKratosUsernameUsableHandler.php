@@ -1,21 +1,20 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Rest;
 
+use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\Rest\Handler;
 use MediaWiki\User\UserIdentityLookup;
 use MediaWiki\User\UserNameUtils;
 use MediaWiki\User\UserRigorOptions;
-use Wikimedia\Equivset\Equivset;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\Rdbms\IConnectionProvider;
 
-class RestApiOryKratosUsernameUsable extends Handler {
+class OryKratosUsernameUsableHandler extends Handler {
 	public function __construct(
 		private readonly UserNameUtils $userNameUtils,
 		private readonly UserIdentityLookup $userIdentityLookup,
-		private readonly IConnectionProvider $dbProvider,
-		private readonly Equivset $equivset
+		private readonly IConnectionProvider $dbProvider
 	) {
 	}
 
@@ -42,7 +41,7 @@ class RestApiOryKratosUsernameUsable extends Handler {
 			->select( 'user_name' )
 			->from( 'user' )
 			->join( 'orykratos_equiv', conds: 'user_id=equiv_user' )
-			->where( [ 'equiv_normalized' => $this->equivset->normalize( $canonicalUsername ) ] )
+			->where( [ 'equiv_normalized' => OryKratos::getEquivset()->normalize( $canonicalUsername ) ] )
 			->limit( 1 )
 			->caller( __METHOD__ )->fetchField();
 		if ( $equivalentUsername !== false ) {

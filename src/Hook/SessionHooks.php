@@ -1,7 +1,8 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Hook;
 
+use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\User\Hook\UserLoadAfterLoadFromSessionHook;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;
@@ -16,7 +17,7 @@ class SessionHooks implements UserLoadAfterLoadFromSessionHook {
 	 */
 	public function onUserLoadAfterLoadFromSession( $user ): void {
 		// see if there's a mapping for this MediaWiki user
-		$identityId = OryKratosTable::findIdentityIdFromUser( $user );
+		$identityId = OryKratos::findIdentityIdFromUser( $user );
 		if ( $identityId === false ) {
 			// no mapping
 			return;

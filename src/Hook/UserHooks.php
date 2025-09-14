@@ -1,19 +1,18 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Hook;
 
 use MediaWiki\Auth\Hook\LocalUserCreatedHook;
+use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\RenameUser\Hook\RenameUserCompleteHook;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\ApiException;
 use Ory\Kratos\Client\Model\JsonPatch;
-use Wikimedia\Equivset\Equivset;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class UserHooks implements LocalUserCreatedHook, RenameUserCompleteHook {
 	public function __construct(
 		private readonly IConnectionProvider $dbProvider,
-		private readonly Equivset $equivset,
 		private readonly IdentityApi $identityApi
 	) {
 	}
@@ -31,7 +30,7 @@ class UserHooks implements LocalUserCreatedHook, RenameUserCompleteHook {
 			->insertInto( 'orykratos_equiv' )
 			->row( [
 				'equiv_user' => $user->getId(),
-				'equiv_normalized' => $this->equivset->normalize( $user->getName() )
+				'equiv_normalized' => OryKratos::getEquivset()->normalize( $user->getName() )
 			] )
 			->caller( __METHOD__ )->execute();
 	}
@@ -43,11 +42,11 @@ class UserHooks implements LocalUserCreatedHook, RenameUserCompleteHook {
 	public function onRenameUserComplete( int $uid, string $old, string $new ): void {
 		$this->dbProvider->getPrimaryDatabase()->newUpdateQueryBuilder()
 			->update( 'orykratos_equiv' )
-			->set( [ 'equiv_normalized' => $this->equivset->normalize( $new ) ] )
+			->set( [ 'equiv_normalized' => OryKratos::getEquivset()->normalize( $new ) ] )
 			->where( [ 'equiv_user' => $uid ] )
 			->caller( __METHOD__ )->execute();
 
-		$identityId = OryKratosTable::findIdentityIdFromUser( $uid );
+		$identityId = OryKratos::findIdentityIdFromUser( $uid );
 		if ( $identityId === false ) {
 			return;
 		}

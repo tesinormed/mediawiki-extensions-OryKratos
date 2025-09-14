@@ -5,7 +5,6 @@ use MediaWiki\MediaWikiServices;
 use Ory\Kratos\Client\Api\FrontendApi;
 use Ory\Kratos\Client\Api\IdentityApi;
 use Ory\Kratos\Client\Configuration;
-use Wikimedia\Equivset\Equivset;
 
 return [
 	'OryKratos.FrontendApi' => static fn ( MediaWikiServices $services ) => new FrontendApi(
@@ -25,6 +24,4 @@ return [
 				->get( 'OryKratosAdminHost' )
 		)
 	),
-
-	'OryKratos.Equivset' => static fn ( MediaWikiServices $services ) => new Equivset(),
 ];

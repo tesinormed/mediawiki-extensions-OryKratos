@@ -1,6 +1,6 @@
 {
 	"name": "OryKratos",
-	"version": "0.14.0",
+	"version": "0.15.0",
 	"author": [
 		"tesinormed"
 	],
@@ -37,31 +37,30 @@
 	"ConfigRegistry": {
 		"orykratos": "GlobalVarConfig::newInstance"
 	},
-	"callback": "MediaWiki\\Extension\\OryKratos\\MainHooks::onRegistration",
+	"callback": "MediaWiki\\Extension\\OryKratos\\Hook\\MainHooks::onRegistration",
 	"HookHandlers": {
 		"main": {
-			"class": "MediaWiki\\Extension\\OryKratos\\MainHooks",
+			"class": "MediaWiki\\Extension\\OryKratos\\Hook\\MainHooks",
 			"services": [
 				"MainConfig",
 				"ConfigFactory"
 			]
 		},
 		"user": {
-			"class": "MediaWiki\\Extension\\OryKratos\\UserHooks",
+			"class": "MediaWiki\\Extension\\OryKratos\\Hook\\UserHooks",
 			"services": [
 				"ConnectionProvider",
-				"OryKratos.Equivset",
 				"OryKratos.IdentityApi"
 			]
 		},
 		"session": {
-			"class": "MediaWiki\\Extension\\OryKratos\\SessionHooks",
+			"class": "MediaWiki\\Extension\\OryKratos\\Hook\\SessionHooks",
 			"services": [
 				"OryKratos.IdentityApi"
 			]
 		},
 		"schema": {
-			"class": "MediaWiki\\Extension\\OryKratos\\SchemaHooks"
+			"class": "MediaWiki\\Extension\\OryKratos\\Hook\\SchemaHooks"
 		}
 	},
 	"Hooks": {
@@ -77,8 +76,8 @@
 		"src/ServiceWiring.php"
 	],
 	"SessionProviders": {
-		"MediaWiki\\Extension\\OryKratos\\OryKratosSessionProvider": {
-			"class": "MediaWiki\\Extension\\OryKratos\\OryKratosSessionProvider",
+		"MediaWiki\\Extension\\OryKratos\\Session\\OryKratosSessionProvider": {
+			"class": "MediaWiki\\Extension\\OryKratos\\Session\\OryKratosSessionProvider",
 			"services": [
 				"ConfigFactory",
 				"OryKratos.FrontendApi",
@@ -91,12 +90,11 @@
 		{
 			"path": "/orykratos/v0/username/usable",
 			"method": "PUT",
-			"class": "MediaWiki\\Extension\\OryKratos\\RestApiOryKratosUsernameUsable",
+			"class": "MediaWiki\\Extension\\OryKratos\\Rest\\OryKratosUsernameUsableHandler",
 			"services": [
 				"UserNameUtils",
 				"UserIdentityLookup",
-				"ConnectionProvider",
-				"OryKratos.Equivset"
+				"ConnectionProvider"
 			]
 		}
 	],

@@ -1,6 +1,6 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Hook;
 
 use MediaWiki\Installer\Hook\LoadExtensionSchemaUpdatesHook;
 
@@ -12,11 +12,11 @@ class SchemaHooks implements LoadExtensionSchemaUpdatesHook {
 	public function onLoadExtensionSchemaUpdates( $updater ): void {
 		$updater->addExtensionTable(
 			'orykratos',
-			__DIR__ . '/../sql/' . $updater->getDB()->getType() . '/' . 'orykratos.sql'
+			__DIR__ . '/../../sql/' . $updater->getDB()->getType() . '/orykratos.sql'
 		);
 		$updater->addExtensionTable(
 			'orykratos_equiv',
-			__DIR__ . '/../sql/' . $updater->getDB()->getType() . '/' . 'orykratos_equiv.sql'
+			__DIR__ . '/../../sql/' . $updater->getDB()->getType() . '/orykratos_equiv.sql'
 		);
 	}
 }

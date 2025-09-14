@@ -1,8 +1,9 @@
 <?php
 
-namespace MediaWiki\Extension\OryKratos;
+namespace MediaWiki\Extension\OryKratos\Session;
 
 use MediaWiki\Config\ConfigFactory;
+use MediaWiki\Extension\OryKratos\OryKratos;
 use MediaWiki\Request\WebRequest;
 use MediaWiki\Session\SessionBackend;
 use MediaWiki\Session\SessionInfo;
@@ -27,7 +28,7 @@ class OryKratosSessionProvider extends SessionProvider {
 
 		$config = $configFactory->makeConfig( 'orykratos' );
 
-		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' ) ?? 'ory_kratos_session';
+		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' );
 		$this->priority = 30;
 	}
 
@@ -51,7 +52,7 @@ class OryKratosSessionProvider extends SessionProvider {
 		$identity = $session->getIdentity();
 
 		// see if there's a mapping for this identity
-		$userId = OryKratosTable::findUserIdFromIdentity( $identity );
+		$userId = OryKratos::findUserIdFromIdentity( $identity );
 		if ( $userId !== false ) {
 			$userInfo = UserInfo::newFromId( $userId, verified: true );
 		} else {
@@ -61,7 +62,7 @@ class OryKratosSessionProvider extends SessionProvider {
 
 			if ( $userIdentity !== null && $userIdentity->isRegistered() ) {
 				// MediaWiki user exists and is registered, save the mapping
-				OryKratosTable::saveUserToIdentityMapping( $userIdentity, $identity );
+				OryKratos::saveUserToIdentityMapping( $userIdentity, $identity );
 
 				$userInfo = UserInfo::newFromId( $userIdentity->getId(), verified: true );
 			} else {
@@ -111,7 +112,7 @@ class OryKratosSessionProvider extends SessionProvider {
 	/** @inheritDoc */
 	public function invalidateSessionsForUser( User $user ): void {
 		// see if there's a mapping for this MediaWiki user
-		$identityId = OryKratosTable::findIdentityIdFromUser( $user );
+		$identityId = OryKratos::findIdentityIdFromUser( $user );
 		if ( $identityId === false ) {
 			// no mapping
 			return;
