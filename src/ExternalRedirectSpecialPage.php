@@ -4,6 +4,7 @@ namespace MediaWiki\Extension\OryKratos;
 
 use Closure;
 use MediaWiki\SpecialPage\UnlistedSpecialPage;
+use MediaWiki\Title\Title;
 
 class ExternalRedirectSpecialPage extends UnlistedSpecialPage {
 	/**
@@ -25,6 +26,14 @@ class ExternalRedirectSpecialPage extends UnlistedSpecialPage {
 
 	/** @inheritDoc */
 	public function execute( $subPage ): void {
-		$this->getOutput()->redirect( $this->url );
+		$returnTo = Title::newFromText( $this->getRequest()->getText( 'returnto' ) )
+			?: Title::newMainPage();
+
+		$url = $this->url;
+		if ( $returnTo !== null ) {
+			$url .= '?return_to=' . $returnTo->getFullURL();
+		}
+
+		$this->getOutput()->redirect( $url );
 	}
 }

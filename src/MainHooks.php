@@ -19,6 +19,19 @@ class MainHooks implements
 	SpecialPage_initListHook,
 	GetPreferencesHook
 {
+	private const DISABLED_SPECIAL_PAGES = [
+		'Userlogout',
+		'CreateAccount',
+		'LinkAccounts',
+		'UnlinkAccounts',
+		'ChangeCredentials',
+		'RemoveCredentials',
+		'ChangePassword',
+		'PasswordReset',
+		'ChangeEmail',
+		'Invalidateemail',
+	];
+
 	private readonly Config $config;
 
 	public function __construct(
@@ -107,32 +120,20 @@ class MainHooks implements
 	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/SpecialPage_initList
 	 */
 	public function onSpecialPage_initList( &$list ): void {
-		$disabledSpecialPages = [
-			'Userlogin' => true,
-			'Userlogout' => true,
-			'CreateAccount' => true,
-			'LinkAccounts' => true,
-			'UnlinkAccounts' => true,
-			'ChangeCredentials' => true,
-			'RemoveCredentials' => true,
-			'ChangePassword' => true,
-			'PasswordReset' => true,
-			'ChangeEmail' => $this->mainConfig->get( MainConfigNames::EnableEmail ),
-			'Invalidateemail' => $this->mainConfig->get( MainConfigNames::EnableEmail ),
-		];
-
-		foreach ( array_keys( array_filter( $disabledSpecialPages ) ) as $page ) {
-			$list[$page] = DisabledSpecialPage::getCallback( $page );
+		foreach ( self::DISABLED_SPECIAL_PAGES as $name ) {
+			$list[$name] = DisabledSpecialPage::getCallback( $name );
 		}
 
-		if ( $this->mainConfig->get( MainConfigNames::EnableEmail ) ) {
-			$list['Confirmemail'] = ExternalRedirectSpecialPage::getCallback( 'Confirmemail',
-				url: $this->generateFlowUrl(
-					'verification',
-					returnTo: SpecialPage::getTitleFor( 'Preferences' )->getFullURL()
-				)
-			);
-		}
+		$list['Userlogin'] = ExternalRedirectSpecialPage::getCallback( 'Userlogin',
+			url: $this->generateFlowUrl( 'login' )
+		);
+
+		$list['Confirmemail'] = ExternalRedirectSpecialPage::getCallback( 'Confirmemail',
+			url: $this->generateFlowUrl(
+				'verification',
+				returnTo: SpecialPage::getTitleFor( 'Preferences' )->getFullURL()
+			)
+		);
 	}
 
 	/**
@@ -155,11 +156,14 @@ class MainHooks implements
 		}
 	}
 
-	private function generateFlowUrl( string $flow, string $returnTo ): string {
-		return $this->generateReturnToUrl(
-			$this->config->get( 'OryKratosPublicHost' ) . '/self-service/' . $flow . '/browser',
-			$returnTo
-		);
+	private function generateFlowUrl( string $flow, ?string $returnTo = null ): string {
+		$result = $this->config->get( 'OryKratosPublicHost' ) . '/self-service/' . $flow . '/browser';
+
+		if ( $returnTo !== null ) {
+			$result = $this->generateReturnToUrl( $result, $returnTo );
+		}
+
+		return $result;
 	}
 
 	private function generateReturnToUrl( string $url, string $returnTo ): string {
