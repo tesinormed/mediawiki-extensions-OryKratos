@@ -129,10 +129,8 @@ class MainHooks implements
 		);
 
 		$list['Confirmemail'] = ExternalRedirectSpecialPage::getCallback( 'Confirmemail',
-			url: $this->generateFlowUrl(
-				'verification',
-				returnTo: SpecialPage::getTitleFor( 'Preferences' )->getFullURL()
-			)
+			url: $this->generateFlowUrl( 'verification' ),
+			defaultReturnTo: SpecialPage::getTitleFor( 'Preferences' )->getFullURL()
 		);
 	}
 
