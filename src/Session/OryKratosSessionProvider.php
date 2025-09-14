@@ -28,7 +28,7 @@ class OryKratosSessionProvider extends SessionProvider {
 
 		$config = $configFactory->makeConfig( 'orykratos' );
 
-		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' );
+		$this->kratosSessionCookie = $config->get( 'OryKratosSessionCookie' ) ?? 'ory_kratos_session';
 		$this->priority = 30;
 	}
 
