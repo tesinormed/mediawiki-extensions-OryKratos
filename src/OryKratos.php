@@ -8,7 +8,7 @@ use Ory\Kratos\Client\Model\Identity;
 use Wikimedia\Equivset\Equivset;
 
 class OryKratos {
-	private static Equivset $equivset;
+	private static ?Equivset $equivset = null;
 
 	public static function getEquivset(): Equivset {
 		if ( self::$equivset === null ) {
